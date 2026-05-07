@@ -5,7 +5,7 @@ from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report
-from sklearn.metrics import  roc_curve
+from sklearn.metrics import  roc_auc_score
 import matplotlib.pyplot as plt
 
 
@@ -26,19 +26,9 @@ def test(X_test, y_test, model):
     
     
 def classifiaction_report(y_test, y_pred):
-    return classification_report(y_test, y_pred)
+    print(classification_report(y_test, y_pred))
 
 
-#def roc_curve(y_test, y_proba):
-    
-    #fpr, tpr, thresholds = roc_curve(y_test, y_proba)
-
-    #plt.plot([0, 1], [0, 1], 'k--')
-
-    # Plot tpr against fpr
-    #plt.plot(fpr, tpr)
-    #plt.xlabel('False Positive Rate')
-    #plt.ylabel('True Positive Rate')
-    #plt.title('ROC Curve for Satisfaction Prediction')
-    #plt.show()
-    #plt.savefig()
+def roc_score(X_test, y_test, model):
+    y_prob = model.predict_proba(X_test)[:, 1]
+    print("ROC-AUC:", roc_auc_score(y_test, y_prob))
