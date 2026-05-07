@@ -4,16 +4,14 @@ import pre_processing
 import evaluation
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_val_score
-from sklearn.pipeline import Pipeline
+from imblearn.pipeline import Pipeline
 from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score, ConfusionMatrixDisplay
-import matplotlib.pyplot as plt
-import seaborn as sns
+
 
 
 mental_health = pd.read_csv("Teen_Mental_Health_Dataset.csv")
@@ -26,53 +24,66 @@ y = processed_data["depression_label"].values
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
-smote = SMOTE(sampling_strategy='minority', random_state=42)
-X_train_sm, y_train_sm = smote.fit_resample(X_train, y_train)
-
-logreg = LogisticRegression()
-rf = RandomForestClassifier()
 
 models = {
-    
     "Logistic Regression": Pipeline([
+        ("smote", SMOTE(sampling_strategy="minority", random_state=42)),
         ("scaler", StandardScaler()),
-        ("model", logreg)
+        ("model", LogisticRegression(max_iter=5000, random_state=42))
         ]),
     
-    "RandomForestClassifier": Pipeline([("model", rf)])
+    "RandomForestClassifier": Pipeline([
+        ("smote", SMOTE(sampling_strategy="minority", random_state=42)),
+        ("model", RandomForestClassifier(class_weight="balanced"))
+    ]),
 }
 
-
-kf = KFold(n_splits=6, random_state=12, shuffle=True)
+sf = StratifiedKFold(n_splits=6, random_state=12, shuffle=True)
 
 for name, model in models.items():
-    cvs_results = cross_val_score(model, X_train_sm, y_train_sm, cv=kf, scoring="f1")
-    print(f"{name}: The Mean F1 is: {cvs_results.mean()}")
+    cvs_results = cross_val_score(model, X_train, y_train, cv=sf, scoring="f1")
+    print(f"{name}: The Mean F1 is: {cvs_results.mean()}, Standard Deviation: {cvs_results.std()}")
 
+
+# Using RandomForrestClassifier as a model
+pipeline = Pipeline([
+    ("smote", SMOTE(sampling_strategy="minority",random_state=42)),
+    ("model", RandomForestClassifier(random_state=42)),
+])
 
 params = [{
-    'n_estimators':[50, 100, 200, 300],
-    'max_depth':[3,5,10, None],
-    'min_samples_split': [2, 5, 10],
-    'min_samples_leaf': [1,2,4],
+    'model__n_estimators':[50, 100, 200, 300],
+    'model__max_depth':[3,5,10, None],
+    'model__min_samples_split': [2, 5, 10],
+    'model__min_samples_leaf': [1,2,4],
 }]
 
-grid_search = GridSearchCV(rf, param_grid=params, cv=5, scoring="f1", n_jobs=-1, verbose=1)
-grid_search.fit(X_train_sm, y_train_sm)
+grid_search = GridSearchCV(
+    estimator=pipeline,
+    param_grid=params,
+    cv=5,
+    scoring="f1",
+    n_jobs=-1,
+    verbose=1
+)
+grid_search.fit(X_train, y_train)
 
-print(grid_search.best_score_)
-print(grid_search.best_params_)
+scores = cross_val_score(
+    grid_search.best_estimator_,
+    X,
+    y,
+    cv=sf,
+    scoring="f1"
+)
 
-rf_2 = RandomForestClassifier(n_estimators=50, max_depth=10, min_samples_leaf=2, min_samples_split=2)
+print(scores)
+print("Mean:", scores.mean())
+print("Std:", scores.std())
 
-rf_2.fit(X_train_sm, y_train_sm)
-
-y_pred = rf_2.predict(X_test)
+y_pred = grid_search.predict(X_test)
 
 evaluation.classifiaction_report(y_test, y_pred)
-evaluation.test(X_test, y_test,rf_2)
+evaluation.test(X_test, y_test,grid_search.best_estimator_)
+evaluation.roc_score(X_test, y_test,grid_search.best_estimator_)
 
-#y_test = np.where(y_test == 1, 1, 0)
-#y_proba = rf_2.predict_proba(X_test)[:, 1]
-
-#evaluation.roc_curve(y_test,y_proba)
+print(processed_data.corr()["depression_label"])
