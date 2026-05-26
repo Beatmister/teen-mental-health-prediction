@@ -23,5 +23,5 @@ def transform(raw_data):
 
 if __name__ == "__main__":
     raw_data = pd.read_csv("Teen_Mental_Health_Dataset.csv") 
-    processd_data = pre_processing(raw_data)
+    processd_data = transform(raw_data)
     print(processd_data.head())
